@@ -1,0 +1,4 @@
+2026-04-08 20:28:21.329753 - Hi, I live in Florida. My monthly bill is $210
+2026-04-09 20:09:00.317824 - Hi, I am from Texas and my bill is $300. What are my savings?
+2026-04-09 20:10:43.305121 - Sure, send it to raeesrahi1714@gmail.com, my name is Raees.
+2026-04-12 21:25:30.941123 - My monthly bill is $250. How many kW do I need and what will be the total cost with the Houston discount?
