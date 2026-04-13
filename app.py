@@ -5,16 +5,17 @@ import os
 # 1. PAGE CONFIGURATION
 st.set_page_config(page_title="Aigent Solar Specialist", page_icon="☀️", layout="wide")
 
-# Custom CSS for VIP Look
+# Custom CSS for VIP Look (Fixed the typo here)
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
     .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #FFD700; color: black; font-weight: bold; }
     .stTextInput>div>div>input { background-color: #262730; color: white; }
     </style>
-    """, unsafe_allow_index=True)
+    """, unsafe_allow_html=True)
 
 # 2. SECRETS & SETUP
+# Make sure GROQ_API_KEY is set in your Streamlit Cloud Secrets
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 MODEL_ID = "llama-3.3-70b-versatile"
 
@@ -31,7 +32,7 @@ with st.sidebar:
     # Admin Access Control
     admin_password = st.text_input("🔑 Admin Password", type="password", help="Enter password to manage agent")
     
-    if admin_password == "raees123": # <--- Aap apna password badal sakte hain
+    if admin_password == "raees123": # <--- Aap apna password yahan se badal sakte hain
         st.success("Admin Mode Active")
         
         with st.expander("📂 Knowledge Manager"):
@@ -73,32 +74,4 @@ with col2:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# 5. AI RESPONSE ENGINE
-if prompt := st.chat_input("Ask about solar..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    # Simple Lead Detection Logic
-    if "@" in prompt or len([s for s in prompt.split() if s.isdigit()]) >= 10:
-        with open("leads.txt", "a") as f:
-            f.write(f"\nLead: {prompt}")
-
-    with st.chat_message("assistant"):
-        # Load Knowledge Context
-        with open("knowledge.txt", "r") as f:
-            context = f.read()
-        
-        full_prompt = f"Context: {context}\n\nUser Question: {prompt}\nAnswer as a professional Solar Specialist."
-        
-        response = client.chat.completions.create(
-            model=MODEL_ID,
-            messages=[{"role": "user", "content": full_prompt}]
-        )
-        answer = response.choices[0].message.content
-        st.markdown(answer)
-        st.session_state.messages.append({"role": "assistant", "content": answer})
+for message in st.
