@@ -65,7 +65,7 @@ if os.path.exists("knowledge.txt"):
         company_context = f.read()
 
 # 5. GROQ SETUP
-client = Groq(api_key="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") # Apni key yahan check karna
+client = Groq(api_key=st.secrets["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"]) # Apni key yahan check karna
 MODEL_ID = "llama-3.3-70b-versatile"
 
 if "messages" not in st.session_state:

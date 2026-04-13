@@ -5,7 +5,7 @@ import datetime
 # 1. SETUP - Apni Groq API Key yahan dalo
 # Yaad rahe quotes " " ke darmiyan key honi chahiye
 API_KEY = "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" 
-client = Groq(api_key=API_KEY)
+client = Groq(api_key=st.secrets["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"])
 
 # 2026 ka sab se tez aur smart model
 MODEL_ID = "llama-3.3-70b-versatile"
