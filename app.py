@@ -6,9 +6,8 @@ import datetime
 import pytz 
 
 # ---------------------------------------------------------
-# 0. CONFIGURATION (ST.SECRETS USE KIYA HAI)
+# 0. CONFIGURATION
 # ---------------------------------------------------------
-# n8n Webhook (Isay aap kal Production URL se badal sakte hain)
 N8N_WEBHOOK_URL = "https://aig3nt.app.n8n.cloud/webhook-test/solar-aigent-leads"
 
 def send_to_n8n(lead_data, alert_type="Standard Lead"):
@@ -27,16 +26,13 @@ def is_office_hours():
     return False
 
 # ---------------------------------------------------------
-# 1. UI DESIGN (VIP GREENERY THEME)
+# 1. UI DESIGN
 # ---------------------------------------------------------
 st.set_page_config(page_title="Aigent Solar | Florida", page_icon="🌿", layout="wide")
 
 st.markdown("""
     <style>
-    .stApp { 
-        background-color: #050a05; 
-        background-image: linear-gradient(135deg, #0a1f0a 0%, #000000 100%); 
-    }
+    .stApp { background-color: #050a05; background-image: linear-gradient(135deg, #0a1f0a 0%, #000000 100%); }
     h1, h2, h3, p, span, label { color: #e0f2e0 !important; font-family: 'Inter', sans-serif; }
     .stButton>button {
         width: 100%; border-radius: 12px; height: 3.5em;
@@ -44,24 +40,20 @@ st.markdown("""
         color: white; font-weight: 700; border: none;
         transition: all 0.3s ease;
     }
-    .stButton>button:hover { 
-        transform: translateY(-3px); 
-        box-shadow: 0 6px 20px rgba(50, 205, 50, 0.4); 
-    }
+    .stButton>button:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(50, 205, 50, 0.4); }
     </style>
     """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. SETUP (ST.SECRETS SE API KEY UTHAYE GA)
+# 2. SETUP
 # ---------------------------------------------------------
 try:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 except:
-    st.error("API Key missing! Please add GROQ_API_KEY in Streamlit Secrets.")
+    st.error("API Key missing! Add it to Streamlit Secrets.")
 
 MODEL_ID = "llama-3.3-70b-versatile"
 
-# Files check
 for f in ["knowledge.txt", "leads.txt"]:
     if not os.path.exists(f):
         with open(f, "w") as file: file.write("")
@@ -83,10 +75,10 @@ with st.sidebar:
         st.rerun()
 
 # ---------------------------------------------------------
-# 4. MAIN INTERFACE (3 COLUMNS)
+# 4. MAIN INTERFACE
 # ---------------------------------------------------------
 st.title("⚡ Aigent Solar Specialist")
-st.subheader("Your Green Energy Journey Starts Here.")
+st.subheader("Florida's Smartest Energy Consultant.")
 
 col1, col2, col3 = st.columns(3)
 with col1:
@@ -98,38 +90,37 @@ with col2:
 with col3:
     if is_office_hours():
         if st.button("📞 Talk to Specialist (LIVE)"):
-            t_stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            send_to_n8n({"message": "URGENT: Client wants to talk live!", "time": t_stamp}, alert_type="PRIORITY_LIVE")
-            st.session_state.messages.append({"role": "user", "content": "I want to speak with a human specialist now."})
-            st.toast("🔔 Alerting the team...")
+            st.session_state.messages.append({"role": "user", "content": "[ACTION: HUMAN_SPECIALIST]"})
     else:
         st.button("🌙 Office Closed (9AM-5PM EST)", disabled=True)
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display Chat
 for msg in st.session_state.messages:
     display_content = msg["content"]
-    if "[ACTION: REPAIR_SERVICE]" in display_content: display_content = "🛠️ I'm looking for solar repair services."
-    elif "[ACTION: NEW_INSTALLATION]" in display_content: display_content = "🏠 I'm interested in a new solar installation."
+    if "[ACTION: REPAIR_SERVICE]" in display_content: display_content = "🛠️ I need solar repair."
+    elif "[ACTION: NEW_INSTALLATION]" in display_content: display_content = "🏠 I want a new installation quote."
+    elif "[ACTION: HUMAN_SPECIALIST]" in display_content: display_content = "📞 I want to talk to a human specialist."
+    
     with st.chat_message(msg["role"]):
         st.markdown(display_content)
 
 # ---------------------------------------------------------
-# 5. ENGINE
+# 5. ENGINE & LEAD CAPTURE LOGIC
 # ---------------------------------------------------------
-if prompt := st.chat_input("Ask about solar in Florida..."):
+if prompt := st.chat_input("Type here..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    # Lead Detection & n8n Alert
     if "@" in prompt or any(len(s) >= 10 and s.isdigit() for s in prompt.split()):
         t_stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with open("leads.txt", "a") as f:
             f.write(f"\n{t_stamp} - {prompt}")
-        send_to_n8n({"data": prompt, "time": t_stamp}, alert_type="New Lead")
-        st.toast("🚀 Lead Recorded!")
+        send_to_n8n({"data": prompt, "time": t_stamp}, alert_type="New Lead Capture")
+        st.toast("🚀 Info sent to our team!")
 
 if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
     with st.chat_message("assistant"):
@@ -138,10 +129,21 @@ if st.session_state.messages and st.session_state.messages[-1]["role"] == "user"
         except: ctx = ""
         
         sys_msg = f"""
-        Role: Professional Solar Expert for Florida.
-        If user triggered [ACTION: NEW_INSTALLATION]: Greet warmly and ask for average monthly bill.
-        If user triggered [ACTION: REPAIR_SERVICE]: Show urgency and ask for issue description.
-        Math: Bill/45=kW, Cost=kW*3000, TaxCredit=30%.
+        Role: Professional Solar Consultant for Florida ONLY.
+        
+        CRITICAL RULE: 
+        - Before giving any calculation or final estimate, you MUST ask for the user's Email or Phone Number. 
+        - Say: "I'd love to send you the full PDF report and savings breakdown. What's your email or phone number so I can send it over?"
+        
+        If [ACTION: HUMAN_SPECIALIST]: 
+        - Say: "I'll arrange a call with our Florida expert. Please provide your phone number or email so they can reach out to you immediately."
+        
+        If [ACTION: NEW_INSTALLATION]: 
+        - Ask for monthly bill AND contact info.
+        
+        General: 
+        - Be brief. No Houston mentions. Only Florida.
+        - Math (only after contact info): Bill/45=kW, Cost=kW*3000, TaxCredit=30%.
         Knowledge: {ctx}
         """
         
