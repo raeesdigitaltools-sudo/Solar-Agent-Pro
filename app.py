@@ -8,7 +8,7 @@ import pytz
 # ---------------------------------------------------------
 # 0. CONFIGURATION
 # ---------------------------------------------------------
-N8N_WEBHOOK_URL = "https://aig3nt.app.n8n.cloud/webhook-test/solar-aigent-leads"
+N8N_WEBHOOK_URL = "https://aig3nt.app.n8n.cloud/webhook/solar-aigent-leads"
 
 def send_to_n8n(lead_data, alert_type="Standard Lead"):
     lead_data["alert_type"] = alert_type
