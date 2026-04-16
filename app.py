@@ -11,7 +11,8 @@ from streamlit_searchbox import st_searchbox
 # 0. CONFIGURATION & FLORIDA PRO MATH
 # ---------------------------------------------------------
 # Apne n8n ka URL yahan check kar lein
-N8N_WEBHOOK_URL = "https://aig3nt.app.n8n.cloud/webhook/solar-aigent-leads"
+# Isse update karein
+N8N_WEBHOOK_URL = "https://aig3nt.app.n8n.cloud/webhook-test/solar-aigent-leads"
 GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY" # Optional for suggestions
 
 FL_CONFIG = {
