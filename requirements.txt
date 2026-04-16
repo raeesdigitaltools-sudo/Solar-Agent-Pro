@@ -1,4 +1,6 @@
 streamlit
 groq
 requests
+pandas
+streamlit-searchbox
 pytz
