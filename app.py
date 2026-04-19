@@ -44,7 +44,7 @@ if "lead_data" not in st.session_state:
 if "last_notified_state" not in st.session_state: st.session_state.last_notified_state = ""
 if "lead_synced" not in st.session_state: st.session_state.lead_synced = False
 
-N8N_URL = "https://aig3nt.app.n8n.cloud/webhook/solar-aigent-leads"
+N8N_URL = "https://aig3nt.app.n8n.cloud/webhook-test/solar-aigent-leads"
 
 def trigger_ai_response(user_text):
     st.session_state.messages.append({"role": "user", "content": user_text})
