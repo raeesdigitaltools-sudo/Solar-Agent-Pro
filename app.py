@@ -74,7 +74,7 @@ if prompt := st.chat_input("Verify address or share bill..."):
                 "bill": st.session_state.lead_data["bill"],
                 "service": st.session_state.lead_data["service"]
             }
-            requests.post("https://aig3nt.app.n8n.cloud/webhook/solar-aigent-leads", json=payload, timeout=10)
+            requests.post("https://aig3nt.app.n8n.cloud/webhook-test/solar-aigent-leads", json=payload, timeout=10)
             st.toast("🚀 Elite Report Unlocked!")
             st.session_state.lead_synced = True
         except: pass
