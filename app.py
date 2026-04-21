@@ -7,13 +7,13 @@ import os, requests, time, pandas as pd, re
 # ---------------------------------------------------------
 VOLT_KNOWLEDGE = """
 Role: Senior Tesla Energy Consultant at Volt Home Florida.
-Tone: Elite, Confident, High-Energy.
+Tone: Elite, High-Energy, Professional.
 
-Strict Rules:
-1. NEVER repeat bullet points if already shown.
-2. If the user provides an address, say: "Miami property? Excellent choice. I'm already looking at the solar potential there."
-3. If they provide an email/phone, say: "Elite. I'm locking in your Tesla ROI dashboard right now. Look below!"
-4. Keep responses under 2 sentences. Focus on the dashboard.
+Strategy:
+1. Short & Punchy: Max 2 sentences per response.
+2. Value First: Focus on "Tesla Certified," "$0 Down," and "Federal Tax Credits."
+3. Transition: Once address/bill is shared, push for email to "Unlock the ROI Dashboard."
+4. Dashboard: Once email is shared, tell them to look below the chat.
 """
 
 # ---------------------------------------------------------
@@ -37,7 +37,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 3. SESSION STATE & CONFIG
+# 3. SESSION STATE & CORE FUNCTIONS
 # ---------------------------------------------------------
 if "messages" not in st.session_state: st.session_state.messages = []
 if "lead_data" not in st.session_state: 
@@ -47,71 +47,45 @@ if "lead_synced" not in st.session_state: st.session_state.lead_synced = False
 
 N8N_URL = "https://aig3nt.app.n8n.cloud/webhook/solar-aigent-leads"
 
-def get_ai_response(user_input):
-    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-    res = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "system", "content": VOLT_KNOWLEDGE}] + st.session_state.messages
-    )
-    return res.choices[0].message.content
+def get_ai_response():
+    """Groq API se response lene ka function"""
+    try:
+        client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+        res = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "system", "content": VOLT_KNOWLEDGE}] + st.session_state.messages
+        )
+        return res.choices[0].message.content
+    except Exception as e:
+        return f"⚠️ Connection Error. (Check Groq Key). Error: {str(e)}"
 
-# ---------------------------------------------------------
-# 4. MAIN INTERFACE
-# ---------------------------------------------------------
-st.title("⚡ Volt Home | Elite Tesla AI")
-st.write("Experience the Future of Florida Energy.")
-
-# Quick Action Buttons
-c1, c2, c3 = st.columns(3)
-with c1:
-    if st.button("☀️ Solar Quote"):
-        st.session_state.lead_data["service"] = "Solar"
-        st.session_state.messages.append({"role": "user", "content": "I want the Tesla Solar experience."})
-        st.rerun()
-with c2:
-    if st.button("🏠 Elite Roofing"):
-        st.session_state.lead_data["service"] = "Roofing"
-        st.session_state.messages.append({"role": "user", "content": "I need elite Florida-tough roofing."})
-        st.rerun()
-with c3:
-    if st.button("🔋 Powerwall"):
-        st.session_state.lead_data["service"] = "Battery"
-        st.session_state.messages.append({"role": "user", "content": "I want 100% independence with Tesla Powerwall."})
-        st.rerun()
-
-st.divider()
-
-# Display Chat History
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]): st.markdown(msg["content"])
-
-# User Input & Smart Logic
-if prompt := st.chat_input("Verify address or share energy bill..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"): st.markdown(prompt)
-
-    # A. EXTRACTION LOGIC
-    if any(word in prompt.lower() for word in ["st", "ave", "miami", "fl", "rd", "court", "drive", "florida"]):
-        clean_addr = re.sub(r'(\$?\d+)|([\w\.-]+@[\w\.-]+)', '', prompt).strip(', ')
-        st.session_state.lead_data["address"] = clean_addr if len(clean_addr) > 5 else prompt
+def process_interaction(user_text):
+    """Chat aur Data Extraction handle karne wala engine"""
+    # 1. Add User Message
+    st.session_state.messages.append({"role": "user", "content": user_text})
     
-    bill_match = re.findall(r'\$(\d+)|(\d+)\s*bill', prompt)
+    # 2. Extract Data (Address, Bill, Contact)
+    if any(word in user_text.lower() for word in ["st", "ave", "miami", "fl", "rd", "court", "drive", "florida"]):
+        clean_addr = re.sub(r'(\$?\d+)|([\w\.-]+@[\w\.-]+)', '', user_text).strip(', ')
+        st.session_state.lead_data["address"] = clean_addr if len(clean_addr) > 5 else user_text
+    
+    bill_match = re.findall(r'\$(\d+)|(\d+)\s*bill', user_text)
     if bill_match:
         st.session_state.lead_data["bill"] = int(bill_match[0][0] or bill_match[0][1])
 
-    email_match = re.findall(r'[\w\.-]+@[\w\.-]+', prompt)
-    phone_match = re.findall(r'\b\d{10,}\b', prompt)
+    email_match = re.findall(r'[\w\.-]+@[\w\.-]+', user_text)
+    phone_match = re.findall(r'\b\d{10,}\b', user_text)
     
     found_contact = False
     if email_match or phone_match:
         st.session_state.lead_data["contact"] = email_match[0] if email_match else phone_match[0]
         found_contact = True
+        st.session_state.lead_synced = True # ROI Unlock
 
-    # B. WEBHOOK TRIGGER (N8N)
-    has_addr_bill = (st.session_state.lead_data["address"] != "Not Provided" and st.session_state.lead_data["bill"] > 0)
-    
-    if has_addr_bill or found_contact:
-        current_state = f"{st.session_state.lead_data['address']}-{st.session_state.lead_data['bill']}-{st.session_state.lead_data['contact']}"
+    # 3. Trigger n8n Webhook (Dual Logic)
+    has_min_data = (st.session_state.lead_data["address"] != "Not Provided")
+    if has_min_data or found_contact:
+        current_state = f"{st.session_state.lead_data['address']}-{st.session_state.lead_data['contact']}"
         if st.session_state.last_notified_state != current_state:
             chat_log = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in st.session_state.messages])
             payload = {
@@ -123,33 +97,62 @@ if prompt := st.chat_input("Verify address or share energy bill..."):
             try:
                 requests.post(N8N_URL, json=payload, timeout=5)
                 st.session_state.last_notified_state = current_state
-                if found_contact: st.session_state.lead_synced = True
             except: pass
 
-    # C. DYNAMIC AI RESPONSE
-    with st.chat_message("assistant"):
-        if found_contact:
-            response = "Excellent. I've locked in your Florida property. Generating your Tesla ROI dashboard right now. Look below! 👇"
-        else:
-            response = get_ai_response(prompt)
-        
-        st.markdown(response)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    # 4. Get AI Reply
+    if found_contact:
+        response = "Excellent. I've locked in your Florida property details. Generating your Tesla ROI dashboard right now. Look below! 👇"
+    else:
+        response = get_ai_response()
+    
+    st.session_state.messages.append({"role": "assistant", "content": response})
 
 # ---------------------------------------------------------
-# 5. THE MAGIC: ELITE ROI DASHBOARD
+# 4. MAIN INTERFACE
+# ---------------------------------------------------------
+st.title("⚡ Volt Home | Elite Tesla AI")
+st.write("Florida's Premium Energy Solution.")
+
+# Buttons (Active Trigger)
+c1, c2, c3 = st.columns(3)
+with c1:
+    if st.button("☀️ Solar Quote"):
+        st.session_state.lead_data["service"] = "Solar"
+        process_interaction("I want the Tesla Solar experience.")
+        st.rerun()
+with c2:
+    if st.button("🏠 Elite Roofing"):
+        st.session_state.lead_data["service"] = "Roofing"
+        process_interaction("I need elite Florida-tough roofing.")
+        st.rerun()
+with c3:
+    if st.button("🔋 Powerwall"):
+        st.session_state.lead_data["service"] = "Battery"
+        process_interaction("I want 100% independence with Tesla Powerwall.")
+        st.rerun()
+
+st.divider()
+
+# Chat Display
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]): st.markdown(msg["content"])
+
+# Text Input
+if prompt := st.chat_input("Verify address or share energy bill..."):
+    process_interaction(prompt)
+    st.rerun()
+
+# ---------------------------------------------------------
+# 5. ELITE ROI DASHBOARD (The Closer)
 # ---------------------------------------------------------
 if st.session_state.lead_synced and st.session_state.lead_data["bill"] > 0:
     st.divider()
-    
-    # Premium Loading Simulation
-    with st.status("🚀 Engineering your Tesla ROI Report...", expanded=True) as status:
+    with st.status("🚀 Engineering your Tesla ROI Report...", expanded=False) as status:
         st.write("Scanning roof via satellite...")
-        time.sleep(0.8)
-        st.write("Calculating Federal Tax Credits ($10,000+ Potential)...")
-        time.sleep(0.8)
-        st.write("Finalizing 25-year energy independence forecast...")
-        status.update(label="✅ Elite Report Ready!", state="complete", expanded=False)
+        time.sleep(0.6)
+        st.write("Calculating Federal Tax Credits...")
+        time.sleep(0.6)
+        status.update(label="✅ Elite Report Ready!", state="complete")
     
     st.balloons()
     bill = st.session_state.lead_data["bill"]
@@ -157,16 +160,11 @@ if st.session_state.lead_synced and st.session_state.lead_data["bill"] > 0:
     savings = round(bill * 12 * 25 * 0.75, -2)
     
     st.subheader(f"📊 Tesla ROI Dashboard: {st.session_state.lead_data['address']}")
-    
     m1, m2, m3 = st.columns(3)
-    m1.metric("Recommended System", f"{kw} kW")
-    m2.metric("Tesla Status", "Certified Install")
-    m3.metric("25-Year Savings", f"${savings:,}")
+    m1.metric("System Size", f"{kw} kW")
+    m2.metric("Tesla Status", "Certified")
+    m3.metric("25-Yr Savings", f"${savings:,}")
     
-    # Financial Growth Chart
-    chart_data = pd.DataFrame({
-        'Year': range(1, 26),
-        'Savings': [ (bill*12*0.75)*i for i in range(1, 26)]
-    })
+    chart_data = pd.DataFrame({'Year': range(1, 26), 'Savings': [(bill*12*0.75)*i for i in range(1, 26)]})
     st.area_chart(chart_data, x='Year', y='Savings', color=PRIMARY_COLOR)
-    st.info("💡 A senior Tesla specialist has been notified. They will reach out to finalize your custom design.")
+    st.info("💡 A senior Tesla specialist has been notified. Check your email shortly.")
