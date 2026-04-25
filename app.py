@@ -3,52 +3,68 @@ from groq import Groq
 import pandas as pd
 import requests
 import datetime
+import re
 
-# --- CONFIGURATION ---
+# --- 1. CONFIGURATION ---
 st.set_page_config(page_title="Volt Home | Elite Tesla AI", layout="wide")
 
-# Secrets se API Key uthana
-client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+# Secrets se API Key uthana (Make sure your secrets.toml has GROQ_API_KEY)
+try:
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+except Exception as e:
+    st.error("Groq API Key missing! Check your Secrets.")
+
+# n8n Webhook URL
 N8N_WEBHOOK_URL = "https://aig3nt.app.n8n.cloud/webhook/solar-aigent-leads"
 
-# --- UI STYLING ---
+# --- 2. ELITE UI STYLING ---
 st.markdown("""
     <style>
     .main { background-color: #000000; color: white; }
-    .stButton>button { background-color: #D81B60; color: white; border-radius: 10px; width: 100%; }
-    .chat-bubble { padding: 15px; border-radius: 15px; margin: 10px 0; border: 1px solid #D81B60; }
+    .stButton>button { 
+        background-color: #D81B60; 
+        color: white; 
+        border-radius: 10px; 
+        border: none;
+        height: 3em;
+        font-weight: bold;
+    }
+    .stChatFloatingInputContainer { background-color: #000000; }
+    div[data-testid="stExpander"] { border: 1px solid #D81B60; border-radius: 10px; }
     </style>
-    """, unsafe_allow_value=True)
+    """, unsafe_allow_html=True)
 
-# --- LOGIC FUNCTIONS ---
+# --- 3. HELPER FUNCTIONS ---
 def send_to_n8n(data):
     try:
-        requests.post(N8N_WEBHOOK_URL, json=data)
-    except Exception as e:
-        print(f"n8n Error: {e}")
+        requests.post(N8N_WEBHOOK_URL, json=data, timeout=5)
+    except:
+        pass # Background process, user ko disturb nahi karega
 
-def calculate_roi(bill):
-    # $150 default logic agar user ne bill nahi dia
-    final_bill = bill if bill > 0 else 150
-    savings = final_bill * 12 * 25 # 25 years savings
-    return final_bill, savings
+def calculate_roi(bill_value):
+    # Agar bill 0 hai toh Florida average $150 pakar lo
+    final_bill = bill_value if bill_value > 0 else 150
+    annual_savings = final_bill * 12 * 0.9 # 90% offset
+    twenty_five_year_savings = annual_savings * 25
+    return final_bill, int(twenty_five_year_savings)
 
-# --- SESSION STATE ---
+# --- 4. SESSION STATE (Memory) ---
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "lead_captured" not in st.session_state:
     st.session_state.lead_captured = {"address": None, "bill": 0, "email": None}
 
-# --- SIDEBAR & HEADER ---
+# --- 5. HEADER ---
 st.title("⚡ Volt Home | Elite Tesla AI")
-st.caption("Florida's Premium Energy Solution.")
+st.markdown("##### Florida's Premium Energy Solution.")
 
 col1, col2, col3 = st.columns(3)
 col1.button("☀️ Solar Quote")
 col2.button("🏠 Elite Roofing")
 col3.button("🔋 Powerwall")
+st.divider()
 
-# --- CHAT INTERFACE ---
+# --- 6. CHAT INTERFACE ---
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
@@ -58,69 +74,63 @@ if prompt := st.chat_input("Verify address or share energy bill..."):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # AI Processing
-    system_prompt = """You are a Tesla Solar Expert. 
-    1. Extract 'address', 'bill' (number only), and 'email'.
-    2. If the user doesn't provide a bill, remind them to share it but proceed with a $150 average.
-    3. Always be professional and elite. 
-    Current State: """ + str(st.session_state.lead_captured)
-
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "system", "content": system_prompt}] + st.session_state.messages
-    )
+    # Simple Extraction (Demo ke liye keywords check)
+    if any(word in prompt.lower() for word in ["rd", "tampa", "st", "ave", "fl"]):
+        st.session_state.lead_captured["address"] = prompt
     
-    ai_msg = response.choices[0].message.content
-    st.session_state.messages.append({"role": "assistant", "content": ai_msg})
-    
-    with st.chat_message("assistant"):
-        st.markdown(ai_msg)
-
-    # --- EXTRACTION LOGIC (Simplified for Demo) ---
-    # Aapka extraction logic yahan check karega variables ko
-    if "W Hawthorne Rd" in prompt or "Tampa" in prompt: # Example check
-        st.session_state.lead_captured["address"] = "3404 W Hawthorne Rd, Tampa, FL"
-    
-    if "$" in prompt or "bill" in prompt.lower():
-        import re
-        nums = re.findall(r'\d+', prompt)
-        if nums: st.session_state.lead_captured["bill"] = int(nums[0])
+    bill_match = re.findall(r'\d+', prompt)
+    if "bill" in prompt.lower() and bill_match:
+        st.session_state.lead_captured["bill"] = int(bill_match[0])
     
     if "@" in prompt:
         st.session_state.lead_captured["email"] = prompt
 
-    # --- VIP AUTOMATION TRIGGER ---
-    lead = st.session_state.lead_captured
+    # AI Response Logic
+    system_msg = f"""You are an Elite Tesla Solar Expert in Florida.
+    Status: {st.session_state.lead_captured}
+    - If address is missing, ask for it professionally.
+    - If bill is missing, tell them you'll use the $150 average for now, but ask for theirs.
+    - If email is missing, explain it's needed to unlock the full ROI Dashboard."""
+
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "system", "content": system_msg}] + st.session_state.messages
+    )
     
+    full_response = response.choices[0].message.content
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
+    with st.chat_message("assistant"):
+        st.markdown(full_response)
+
+    # --- 7. DYNAMIC ROI DASHBOARD ---
+    lead = st.session_state.lead_captured
     if lead["address"]:
-        # Agar sirf address hai, toh 'Preview ROI' dikhao
         display_bill, total_savings = calculate_roi(lead["bill"])
         
-        st.divider()
-        st.subheader(f"📊 Your Tesla ROI Dashboard (Based on ${display_bill}/mo)")
-        
-        # Chart Data
-        chart_data = pd.DataFrame({
-            'Year': ['Now', 'Year 5', 'Year 10', 'Year 25'],
-            'Cost with Utility': [display_bill*12, display_bill*12*5, display_bill*12*10, display_bill*12*25],
-            'Cost with Tesla Solar': [0, 5000, 5000, 5000] # Simplified investment
-        }).set_index('Year')
-        
-        st.area_chart(chart_data)
-        st.success(f"Estimated 25-Year Savings: **${total_savings:,}**")
+        with st.container():
+            st.markdown(f"### 📊 Tesla ROI Forecast for: {lead['address']}")
+            
+            # Chart Data
+            chart_data = pd.DataFrame({
+                'Year': ['Now', 'Year 5', 'Year 10', 'Year 20', 'Year 25'],
+                'Utility Cost ($)': [display_bill*12, display_bill*12*5, display_bill*12*10, display_bill*12*20, display_bill*12*25],
+                'Tesla Solar Cost ($)': [2000, 4000, 4000, 4000, 4000]
+            }).set_index('Year')
+            
+            st.area_chart(chart_data, color=["#D81B60", "#2E7D32"])
+            st.metric("Estimated 25-Year Savings", f"${total_savings:,}", delta="Tesla Optimized")
 
-        # Balloons sirf tab jab EMAIL mil jaye
-        if lead["email"]:
-            st.balloons()
-            st.toast("Elite Proposal Sent to Email!", icon="📩")
-        
-        # Data n8n ko bhejna
-        payload = {
-            "Timestamp": datetime.datetime.now().isoformat(),
-            "address": lead["address"],
-            "bill": display_bill,
-            "contact": lead["email"] if lead["email"] else "Not Provided",
-            "Lead_type": "HOT" if lead["email"] and lead["bill"] > 0 else "WARM (Default Bill used)",
-            "chat_log": str(st.session_state.messages[-2:])
-        }
-        send_to_n8n(payload)
+            # Final Automation Trigger
+            payload = {
+                "Timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "address": lead["address"],
+                "bill": display_bill,
+                "contact": lead["email"] if lead["email"] else "PENDING",
+                "Lead_type": "HOT" if lead["email"] else "WARM (Partial)",
+                "chat_log": prompt
+            }
+            send_to_n8n(payload)
+
+            if lead["email"]:
+                st.balloons()
+                st.success("ROI Report locked & sent to your email! 📩")
